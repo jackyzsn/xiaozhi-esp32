@@ -175,8 +175,7 @@ void WifiBoard::StartWifiConfigMode() {
 
         Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
     });
-#endif
-#if CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+#elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
     auto &blufi = Blufi::GetInstance();
     // initialize esp-blufi protocol
     blufi.init();
@@ -259,9 +258,9 @@ const char* WifiBoard::GetNetworkStateIcon() {
     }
 
     int rssi = wifi.GetRssi();
-    if (rssi >= -60) {
+    if (rssi >= -65) {
         return FONT_AWESOME_WIFI;
-    } else if (rssi >= -70) {
+    } else if (rssi >= -75) {
         return FONT_AWESOME_WIFI_FAIR;
     }
     return FONT_AWESOME_WIFI_WEAK;
