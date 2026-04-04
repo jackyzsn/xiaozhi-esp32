@@ -309,13 +309,15 @@ void Application::HandleActivationDoneEvent() {
     display->ShowNotification(message.c_str());
     display->SetChatMessage("system", "");
 
-    // Play the success sound to indicate the device is ready
-    audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
-
     // Release OTA object after activation is complete
     ota_.reset();
     auto& board = Board::GetInstance();
     board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
+
+    Schedule([this]() {
+        // Play the success sound to indicate the device is ready
+        audio_service_.PlaySound(Lang::Sounds::OGG_SUCCESS);
+    });
 }
 
 void Application::ActivationTask() {
@@ -838,9 +840,6 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     }
     // Set the chat state to wake word detected
     protocol_->SendWakeWordDetected(wake_word);
-
-    // Set flag to play popup sound after state changes to listening
-    play_popup_on_listening_ = true;
     SetListeningMode(GetDefaultListeningMode());
 #else
     // Set flag to play popup sound after state changes to listening

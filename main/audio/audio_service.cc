@@ -39,15 +39,6 @@
 
 AudioService::AudioService() {
     event_group_ = xEventGroupCreate();
-
-    demuxer_.OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t size){
-        auto packet = std::make_unique<AudioStreamPacket>();
-        packet->sample_rate = sample_rate;
-        packet->frame_duration = 60;
-        packet->payload.resize(size);
-        std::memcpy(packet->payload.data(), data, size);
-        PushPacketToDecodeQueue(std::move(packet), true);
-    });
 }
 
 AudioService::~AudioService() {
@@ -289,8 +280,8 @@ void AudioService::AudioInputTask() {
             }
         }
 
-        ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
-        break;
+        // Read timeout/error should not terminate the input task.
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     ESP_LOGW(TAG, "Audio input task stopped");
@@ -314,6 +305,7 @@ void AudioService::AudioOutputTask() {
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
             codec_->EnableOutput(true);
         }
+
         codec_->OutputData(task->pcm);
 
         /* Update the last output time */
@@ -647,8 +639,18 @@ void AudioService::PlaySound(const std::string_view& ogg) {
 
     const auto* buf = reinterpret_cast<const uint8_t*>(ogg.data());
     size_t size = ogg.size();
-    demuxer_.Reset();
-    demuxer_.Process(buf, size);
+
+    auto demuxer = std::make_unique<OggDemuxer>();
+    demuxer->OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t size){
+        auto packet = std::make_unique<AudioStreamPacket>();
+        packet->sample_rate = sample_rate;
+        packet->frame_duration = 60;
+        packet->payload.resize(size);
+        std::memcpy(packet->payload.data(), data, size);
+        PushPacketToDecodeQueue(std::move(packet), true);
+    });
+    demuxer->Reset();
+    demuxer->Process(buf, size);
 }
 
 bool AudioService::IsIdle() {
@@ -685,7 +687,10 @@ void AudioService::CheckAndUpdateAudioPowerState() {
         codec_->EnableInput(false);
     }
     if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
-        codec_->EnableOutput(false);
+        // Keep TX clock when duplex RX is active; otherwise RX may stall on some boards.
+        if (!(codec_->duplex() && codec_->input_enabled())) {
+            codec_->EnableOutput(false);
+        }
     }
     if (!codec_->input_enabled() && !codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
