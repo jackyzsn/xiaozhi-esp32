@@ -7,6 +7,9 @@
 # 编译配置命令
 
 **配置编译目标为 ESP32S3：**
+```
+source  ~/esp/esp-idf-5.5.2/export.sh
+```
 
 ```bash
 idf.py set-target esp32s3
